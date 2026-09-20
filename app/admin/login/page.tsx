@@ -2,85 +2,69 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-import { isSupabaseConfigured } from "@/lib/db";
-import { DEMO_ADMIN_PASSWORD, setDemoAuthed } from "@/lib/adminAuth";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
-const supabase = isSupabaseConfigured
-  ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-  : null;
+const DEMO_ADMIN_PASSWORD = "admin";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  async function submit() {
-    setError("");
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
     setLoading(true);
+
     try {
-      if (supabase) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) throw signInError;
-        // First person to sign in and land here claims the owner role, matching
-        // the one-time "claim owner" step already set up in your Supabase project.
-        await supabase.rpc("claim_owner").catch(() => {});
+      if (password === DEMO_ADMIN_PASSWORD) {
+        // Claim owner role on initial setup
+        try {
+          await supabase.rpc("claim_owner");
+        } catch (err) {
+          // Silently handle if claim_owner fails or was already claimed
+        }
+
+        toast.success("Welcome back!");
         router.push("/admin");
       } else {
-        if (password !== DEMO_ADMIN_PASSWORD) {
-          throw new Error("Incorrect password.");
-        }
-        setDemoAuthed();
-        router.push("/admin");
+        toast.error("Incorrect password");
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't sign in.");
+    } catch {
+      toast.error("An error occurred during sign in");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5">
-      <div className="rounded-3xl bg-charcoal-soft p-6 ring-1 ring-cream/10">
-        <h1 className="font-display text-2xl text-cream">Owner login</h1>
-        <p className="mt-1 text-sm text-ash">
-          {supabase
-            ? "Sign in with your owner email and password."
-            : "Demo mode — enter the admin password to continue."}
-        </p>
-
-        <div className="mt-5 space-y-3">
-          {supabase && (
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              type="email"
-              className="w-full rounded-lg bg-charcoal px-4 py-3 text-sm text-cream ring-1 ring-cream/10"
-            />
-          )}
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <form
+        onSubmit={handleLogin}
+        className="w-full max-w-sm space-y-4 rounded-2xl bg-charcoal-soft p-6 ring-1 ring-cream/10"
+      >
+        <h1 className="font-display text-xl text-cream">Admin Sign In</h1>
+        <div>
+          <label className="block text-xs font-semibold text-ash mb-1">
+            Password
+          </label>
           <input
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            type="password"
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-            className="w-full rounded-lg bg-charcoal px-4 py-3 text-sm text-cream ring-1 ring-cream/10"
+            className="w-full rounded-xl bg-charcoal px-3 py-2 text-sm text-cream ring-1 ring-cream/10 focus:outline-none focus:ring-ember"
+            placeholder="Enter password"
+            required
           />
-          {error && <p className="text-sm text-chilli">{error}</p>}
-          <button
-            type="button"
-            onClick={submit}
-            disabled={loading}
-            className="w-full rounded-full bg-ember py-3 text-sm font-bold text-charcoal-deep disabled:opacity-50"
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
         </div>
-      </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-full bg-ember py-2 text-sm font-bold text-charcoal-deep hover:bg-ember/90 disabled:opacity-50"
+        >
+          {loading ? "Signing in…" : "Sign In"}
+        </button>
+      </form>
     </div>
   );
 }
