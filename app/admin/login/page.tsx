@@ -38,12 +38,20 @@ export default function AdminLoginPage() {
           // First account created claims the owner role automatically — this only
           // succeeds once, matching the one-time "claim owner" step already set
           // up in your Supabase project.
-          await supabase.rpc("claim_owner").catch(() => {});
+          try {
+            await supabase.rpc("claim_owner");
+          } catch {
+            // ignore — expected once an owner already exists
+          }
           router.push("/admin");
         } else {
           const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
           if (signInError) throw signInError;
-          await supabase.rpc("claim_owner").catch(() => {});
+          try {
+            await supabase.rpc("claim_owner");
+          } catch {
+            // ignore — expected once an owner already exists
+          }
           router.push("/admin");
         }
       } else {
