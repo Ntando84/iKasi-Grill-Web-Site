@@ -8,8 +8,7 @@ export const SEED_MENU_ITEMS: MenuItem[] = [
   { id: "m5", name: "Pork Platter for 2", description: "Pork, sides and sauce - enough for two.", category: "Platter for 2", price_cents: 15000, price_note: "", available: true, sort_order: 1 },
   { id: "m6", name: "Beef Platter for 2", description: "Beef, sides and sauce - enough for two.", category: "Platter for 2", price_cents: 18000, price_note: "", available: true, sort_order: 2 },
   { id: "m7", name: "Guacamole", description: "House guacamole with our sauces on top.", category: "Sides", price_cents: 3500, price_note: "", available: true, sort_order: 1 },
-  { id: "m8", name: "Pap & Chakalaka", description: "Fluffy pap with spicy chakalaka.", category: "Sides", price_cents: 3000, price_note: "", available: true, sort_order: 2 },
-  { id: "m9", name: "Passion Fruit", description: "iKasi Fizz - chilled passion fruit.", category: "iKasi Fizz", price_cents: 1500, price_note: "", available: true, sort_order: 1 },
+  { id: "m9", name: "Passionfruit", description: "iKasi Fizz - chilled passionfruit.", category: "iKasi Fizz", price_cents: 1500, price_note: "", available: true, sort_order: 1 },
   { id: "m10", name: "Watermelon", description: "iKasi Fizz - chilled watermelon.", category: "iKasi Fizz", price_cents: 1500, price_note: "", available: true, sort_order: 2 },
 ];
 
