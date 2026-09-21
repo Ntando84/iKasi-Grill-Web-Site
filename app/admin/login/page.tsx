@@ -2,69 +2,124 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+import { isSupabaseConfigured } from "@/lib/db";
+import { DEMO_ADMIN_PASSWORD, setDemoAuthed } from "@/lib/adminAuth";
 
-const DEMO_ADMIN_PASSWORD = "admin";
+const supabase = isSupabaseConfigured
+  ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  : null;
 
 export default function AdminLoginPage() {
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit() {
+    setError("");
+    setInfo("");
     setLoading(true);
-
     try {
-      if (password === DEMO_ADMIN_PASSWORD) {
-        // Claim owner role on initial setup
-        try {
-          await supabase.rpc("claim_owner");
-        } catch (err) {
-          // Silently handle if claim_owner fails or was already claimed
-        }
+      if (supabase) {
+        if (mode === "signup") {
+          const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+          if (signUpError) throw signUpError;
 
-        toast.success("Welcome back!");
-        router.push("/admin");
+          if (!data.session) {
+            // Project has email confirmation turned on — no session yet.
+            setInfo("Account created. Check your email to confirm it, then sign in below.");
+            setMode("signin");
+            return;
+          }
+          // First account created claims the owner role automatically — this only
+          // succeeds once, matching the one-time "claim owner" step already set
+          // up in your Supabase project.
+          await supabase.rpc("claim_owner").catch(() => {});
+          router.push("/admin");
+        } else {
+          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInError) throw signInError;
+          await supabase.rpc("claim_owner").catch(() => {});
+          router.push("/admin");
+        }
       } else {
-        toast.error("Incorrect password");
+        if (password !== DEMO_ADMIN_PASSWORD) {
+          throw new Error("Incorrect password.");
+        }
+        setDemoAuthed();
+        router.push("/admin");
       }
-    } catch {
-      toast.error("An error occurred during sign in");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <form
-        onSubmit={handleLogin}
-        className="w-full max-w-sm space-y-4 rounded-2xl bg-charcoal-soft p-6 ring-1 ring-cream/10"
-      >
-        <h1 className="font-display text-xl text-cream">Admin Sign In</h1>
-        <div>
-          <label className="block text-xs font-semibold text-ash mb-1">
-            Password
-          </label>
+    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-5">
+      <div className="rounded-3xl bg-charcoal-soft p-6 ring-1 ring-cream/10">
+        <h1 className="font-display text-2xl text-cream">
+          {mode === "signup" ? "Create owner account" : "Owner login"}
+        </h1>
+        <p className="mt-1 text-sm text-ash">
+          {!supabase
+            ? "Demo mode — enter the admin password to continue."
+            : mode === "signup"
+              ? "First time here? Create the owner account below — this only works once."
+              : "Sign in with your owner email and password."}
+        </p>
+
+        <div className="mt-5 space-y-3">
+          {supabase && (
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              type="email"
+              className="w-full rounded-lg bg-charcoal px-4 py-3 text-sm text-cream ring-1 ring-cream/10"
+            />
+          )}
           <input
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl bg-charcoal px-3 py-2 text-sm text-cream ring-1 ring-cream/10 focus:outline-none focus:ring-ember"
-            placeholder="Enter password"
-            required
+            placeholder="Password"
+            type="password"
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            className="w-full rounded-lg bg-charcoal px-4 py-3 text-sm text-cream ring-1 ring-cream/10"
           />
+          {error && <p className="text-sm text-chilli">{error}</p>}
+          {info && <p className="text-sm text-ember">{info}</p>}
+          <button
+            type="button"
+            onClick={submit}
+            disabled={loading}
+            className="w-full rounded-full bg-ember py-3 text-sm font-bold text-charcoal-deep disabled:opacity-50"
+          >
+            {loading ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}
+          </button>
+
+          {supabase && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "signup" ? "signin" : "signup");
+                setError("");
+                setInfo("");
+              }}
+              className="w-full text-center text-xs text-ash hover:text-ember"
+            >
+              {mode === "signup"
+                ? "Already have an account? Sign in instead"
+                : "First time? Create the owner account"}
+            </button>
+          )}
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-full bg-ember py-2 text-sm font-bold text-charcoal-deep hover:bg-ember/90 disabled:opacity-50"
-        >
-          {loading ? "Signing in…" : "Sign In"}
-        </button>
-      </form>
+      </div>
     </div>
   );
 }
