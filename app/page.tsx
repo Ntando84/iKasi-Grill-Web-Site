@@ -8,6 +8,71 @@ import { getMenuItems, getPromotions } from "@/lib/db";
 import { CATEGORY_ORDER, RESTAURANT } from "@/lib/seed-data";
 import type { MenuItem, Promotion } from "@/lib/types";
 
+// Reads a price range out of a note like "R25 - R40 depending on size" and
+// offers R5 steps between the low and high end. Fixed-price items (no range
+// in the note) stay a plain one-tap Add button.
+function getPriceOptions(item: MenuItem): number[] {
+  const amounts = Array.from(item.price_note.matchAll(/R?\s*(\d+(?:\.\d{1,2})?)/gi)).map((m) =>
+    Math.round(Number(m[1]) * 100),
+  );
+  const valid = amounts.filter((n) => Number.isFinite(n));
+  if (valid.length < 2) return [item.price_cents];
+  const min = Math.min(...valid);
+  const max = Math.max(...valid);
+  if (max <= min) return [item.price_cents];
+  const options: number[] = [];
+  for (let price = min; price <= max; price += 500) options.push(price);
+  if (options.at(-1) !== max) options.push(max);
+  return options;
+}
+
+function MenuItemCard({
+  item,
+  onAdd,
+}: {
+  item: MenuItem;
+  onAdd: (item: { menuItemId: string; name: string; unit_price_cents: number }) => void;
+}) {
+  const prices = getPriceOptions(item);
+  const hasChoices = prices.length > 1;
+  const [selected, setSelected] = useState(prices[0] ?? item.price_cents);
+
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-2xl bg-charcoal-soft p-4 ring-1 ring-cream/10">
+      <div>
+        <p className="font-semibold text-cream">{item.name}</p>
+        <p className="mt-1 text-xs text-ash">{item.description}</p>
+        {!hasChoices && (
+          <p className="mt-2 text-sm font-bold text-ember">
+            {item.price_note || formatRand(item.price_cents)}
+          </p>
+        )}
+        {hasChoices && (
+          <select
+            aria-label={`Choose a price for ${item.name}`}
+            value={selected}
+            onChange={(e) => setSelected(Number(e.target.value))}
+            className="mt-2 rounded-full bg-charcoal px-3 py-1 text-sm font-bold text-ember ring-1 ring-cream/10"
+          >
+            {prices.map((p) => (
+              <option key={p} value={p}>
+                {formatRand(p)}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onAdd({ menuItemId: item.id, name: item.name, unit_price_cents: selected })}
+        className="shrink-0 rounded-full bg-ember px-3 py-1.5 text-xs font-bold text-charcoal-deep"
+      >
+        Add
+      </button>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [promos, setPromos] = useState<Promotion[]>([]);
@@ -106,31 +171,7 @@ export default function HomePage() {
               <h3 className="font-display text-lg text-cream">{category}</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {categoryItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start justify-between gap-3 rounded-2xl bg-charcoal-soft p-4 ring-1 ring-cream/10"
-                  >
-                    <div>
-                      <p className="font-semibold text-cream">{item.name}</p>
-                      <p className="mt-1 text-xs text-ash">{item.description}</p>
-                      <p className="mt-2 text-sm font-bold text-ember">
-                        {item.price_note || formatRand(item.price_cents)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        addItem({
-                          menuItemId: item.id,
-                          name: item.name,
-                          unit_price_cents: item.price_cents,
-                        })
-                      }
-                      className="shrink-0 rounded-full bg-ember px-3 py-1.5 text-xs font-bold text-charcoal-deep"
-                    >
-                      Add
-                    </button>
-                  </div>
+                  <MenuItemCard key={item.id} item={item} onAdd={addItem} />
                 ))}
               </div>
             </div>
